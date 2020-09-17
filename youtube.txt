@@ -1,0 +1,32 @@
+/system script remove "youtube"
+/system script add name="youtube" source= {
+:do {
+:local LIST "youtube";
+:local DOMAIN "googlevideo.com";
+ :foreach Crec in=[/ip dns cache all find where ( (type="A") && (static=no) && (name~$DOMAIN) )] do={
+  :local Cname [/ip dns cache get number=$Crec name]; 
+  :local Cdata [/ip dns cache get number=$Crec data]; 
+  :delay 50ms;
+  :do {/ip firewall address-list
+   :do {add list=$LIST address=$Cdata comment=$Cname disabled=no} on-error={}
+  }
+ } 
+:log warning "script youtube done"; 
+} on-error={}
+}
+
+/system script run youtube
+
+/ip firewall mangle
+add action=mark-packet chain=forward new-packet-mark=youtube passthrough=no src-address-list=youtube
+
+/queue simple
+add max-limit=100k/100k name="youtube user1" packet-marks=youtube target=192.168.88.80/32
+add max-limit=100k/100k name="youtube user2" packet-marks=youtube target=192.168.88.82/32
+add max-limit=100k/100k name="youtube user3" packet-marks=youtube target=192.168.88.83/32
+
+/system scheduler 
+remove "youtube"
+add interval=20m name=youtube on-event=youtube policy=ftp,reboot,read,write,policy,test,password,sniff,sensitive,romon start-date=jan/01/2020 start-time=00:00:00
+
+/ip firewall filter disable [find where action=fasttrack-connection]
